@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8" />
+    <title>Performans Analizi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-100 text-gray-900">
+    <div class="max-w-5xl mx-auto py-10 px-4">
+        <h1 class="text-3xl font-bold mb-6">Personel Performans Analizi</h1>
+
+        <!-- Analiz Tipi -->
+        <div class="mb-6">
+            <label for="analizTipi" class="block font-semibold mb-1">Analiz Tipi</label>
+            <select id="analizTipi" class="border rounded p-2 w-full max-w-xs">
+                <option value="">Seçiniz...</option>
+                <option value="karsilastirma">Personeller Arası Karşılaştırma</option>
+                <option value="default">Default Karakter Kıyaslama</option>
+                <option value="defter">Defter Bazlı Performans</option>
+            </select>
+        </div>
+
+        <!-- Kullanıcı Seçimi -->
+        <div class="mb-6" id="kullaniciAdiDiv" style="display:none;">
+            <label for="kullaniciAdi" class="block font-semibold mb-1">Kullanıcı Adı (Default için)</label>
+            <select id="kullaniciAdi" class="border rounded p-2 w-full max-w-xs" size="6">
+                <option value="">Kullanıcı Seçiniz</option>
+            </select>
+        </div>
+
+        <!-- Tarih / İlçe -->
+        <div id="tarihIlceDiv" style="display:none;">
+            <div class="mb-6">
+                <label for="ilkTarih" class="block font-semibold mb-1">İlk Tarih</label>
+                <input id="ilkTarih" type="date" class="border rounded p-2 w-full max-w-xs" />
+            </div>
+            <div class="mb-6">
+                <label for="sonTarih" class="block font-semibold mb-1">Son Tarih</label>
+                <input id="sonTarih" type="date" class="border rounded p-2 w-full max-w-xs" />
+            </div>
+            <div class="mb-6">
+                <label for="ilce" class="block font-semibold mb-1">İlçe</label>
+                <input id="ilce" type="text" class="border rounded p-2 w-full max-w-xs" placeholder="İlçe Girin" />
+            </div>
+            <div class="mb-6">
+                <label for="normalOkumaMin" class="block font-semibold mb-1">Minimum Normal Okuma</label>
+                <input id="normalOkumaMin" type="number" min="0" value="0" class="border rounded p-2 w-full max-w-xs" />
+            </div>
+        </div>
+
+        <!-- Defter Alanı -->
+        <div id="defterFiltre" style="display:none;">
+            <div class="mb-6">
+                <label for="defterNo" class="block font-semibold mb-1">Defter No</label>
+                <input type="text" id="defterNo" placeholder="Defter No Girin" class="border rounded p-2 w-full max-w-xs" />
+            </div>
+            <div class="mb-6">
+                <label for="okumaSuresi" class="block font-semibold mb-1">Okuma Süresi (Saat)</label>
+                <input type="number" id="okumaSuresi" min="0" step="0.1" placeholder="Örn: 3" class="border rounded p-2 w-full max-w-xs" />
+            </div>
+        </div>
+
+        <!-- Grafik Alanı -->
+        <div class="mb-10">
+            <canvas id="kategoriGrafik" width="400" height="180"></canvas>
+        </div>
+
+        <button id="btnAnalizGetir" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded">
+            Analizi Getir
+        </button>
+
+        <!-- Sonuç Alanı -->
+        <div id="sonuclar" class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8"></div>
+    </div>
+    <div class="mb-10">
+        <canvas id="kategoriGrafik" width="400" height="160"></canvas>
+    </div>
+
+<script>
+const analizTipiSelect = document.getElementById('analizTipi');
+const kullaniciAdiDiv = document.getElementById('kullaniciAdiDiv');
+const kullaniciAdiSelect = document.getElementById('kullaniciAdi');
+const tarihIlceDiv = document.getElementById('tarihIlceDiv');
+const defterFiltreDiv = document.getElementById('defterFiltre');
+const btnAnalizGetir = document.getElementById('btnAnalizGetir');
+const sonuclarDiv = document.getElementById('sonuclar');
+
+
+
+analizTipiSelect.addEventListener('change', () => {
+    const tip = analizTipiSelect.value;
+    kullaniciAdiDiv.style.display = 'none';
+    tarihIlceDiv.style.display = 'none';
+    defterFiltreDiv.style.display = 'none';
+    kullaniciAdiSelect.innerHTML = '<option value="">Kullanıcı Seçiniz</option>';
+
+    if (tip === 'default') {
+        tarihIlceDiv.style.display = 'block';
+        kullaniciAdiDiv.style.display = 'block';
+        const ilkTarih = document.getElementById('ilkTarih').value;
+        const sonTarih = document.getElementById('sonTarih').value;
+        if (ilkTarih && sonTarih) {
+            fetchKullanicilar();
+        }
+    } else if (tip === 'karsilastirma') {
+        tarihIlceDiv.style.display = 'block';
+    } else if (tip === 'defter') {
+        defterFiltreDiv.style.display = 'block';
+    }
+});
+
+['ilkTarih', 'sonTarih', 'ilce'].forEach(id => {
+    document.getElementById(id).addEventListener('change', () => {
+        if (analizTipiSelect.value === 'default') {
+            const ilkTarih = document.getElementById('ilkTarih').value;
+            const sonTarih = document.getElementById('sonTarih').value;
+            if (ilkTarih && sonTarih) {
+                kullaniciAdiDiv.style.display = 'block';
+                fetchKullanicilar();
+            } else {
+                kullaniciAdiDiv.style.display = 'none';
+                kullaniciAdiSelect.innerHTML = '<option value="">Lütfen tarih seçin</option>';
+            }
+        }
+    });
+});
+
+async function fetchKullanicilar() {
+    const ilkTarih = document.getElementById('ilkTarih').value;
+    const sonTarih = document.getElementById('sonTarih').value;
+    let url = `/kullanicilar?ilkTarih=${encodeURIComponent(ilkTarih)}&sonTarih=${encodeURIComponent(sonTarih)}`;
+    const ilce = document.getElementById('ilce').value.trim();
+    if (ilce) url += `&ilce=${encodeURIComponent(ilce)}`;
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+        kullaniciAdiSelect.innerHTML = '<option value="">Kullanıcı Seçiniz</option>';
+        (data.kullanicilar || []).forEach(kullanici => {
+            const opt = document.createElement('option');
+            opt.value = kullanici;
+            opt.textContent = kullanici;
+            kullaniciAdiSelect.appendChild(opt);
+        });
+    } catch {
+        kullaniciAdiSelect.innerHTML = '<option value="">Kullanıcılar alınamadı</option>';
+    }
+}
+
+btnAnalizGetir.addEventListener('click', async () => {
+    sonuclarDiv.innerHTML = 'Yükleniyor...';
+    const tip = analizTipiSelect.value;
+    let url = `/analiz?tip=${encodeURIComponent(tip)}`;
+    const ilkTarih = document.getElementById('ilkTarih').value;
+    const sonTarih = document.getElementById('sonTarih').value;
+
+    if (ilkTarih && sonTarih && new Date(ilkTarih) > new Date(sonTarih)) {
+        alert("İlk tarih, son tarihten büyük olamaz!");
+        sonuclarDiv.innerHTML = '';
+        return;
+    }
+
+    if (tip === 'default') {
+        const kullaniciAdi = kullaniciAdiSelect.value;
+        if (!kullaniciAdi) {
+            alert("Default analiz için kullanıcı seçmelisiniz.");
+            sonuclarDiv.innerHTML = '';
+            return;
+        }
+        url += `&kullanici_adi=${encodeURIComponent(kullaniciAdi)}`;
+    }
+    if (ilkTarih) url += `&ilkTarih=${encodeURIComponent(ilkTarih)}`;
+    if (sonTarih) url += `&sonTarih=${encodeURIComponent(sonTarih)}`;
+    const ilce = document.getElementById('ilce').value.trim();
+    if (ilce) url += `&ilce=${encodeURIComponent(ilce)}`;
+    const normalMin = document.getElementById('normalOkumaMin').value;
+    if (normalMin) url += `&normal_okuma_min=${encodeURIComponent(normalMin)}`;
+
+    if (tip === 'defter') {
+        const defterNo = document.getElementById('defterNo').value.trim();
+        const okumaSuresi = document.getElementById('okumaSuresi').value;
+        if (!defterNo || !okumaSuresi) {
+            alert("Defter analizi için Defter No ve Okuma Süresi girilmelidir.");
+            sonuclarDiv.innerHTML = '';
+            return;
+        }
+        url += `&defter_id=${encodeURIComponent(defterNo)}&okuma_suresi=${encodeURIComponent(okumaSuresi)}`;
+    }
+
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.HATA) {
+            sonuclarDiv.innerHTML = `<p class="text-red-600 font-semibold">${data.HATA}</p>`;
+            // Grafik temizle
+            if(window.kategoriChart) window.kategoriChart.destroy();
+            return;
+        }
+        const sonucListesi = data.analiz_sonucu;
+        if (!Array.isArray(sonucListesi) || sonucListesi.length === 0) {
+            sonuclarDiv.innerHTML = `<p class="text-gray-600 font-medium">Hiç sonuç bulunamadı.</p>`;
+            // Grafik temizle
+            if(window.kategoriChart) window.kategoriChart.destroy();
+            return;
+        }
+
+        // === KATEGORİ GRAFİĞİ ===
+        // === KATEGORİ GRAFİĞİ ===
+        const tumKategoriler = ["Mükemmel", "Çok İyi", "İyi", "Orta", "Geliştirmeli"];
+        const kategoriSayilari = {
+            "Mükemmel": 0,
+            "Çok İyi": 0,
+            "İyi": 0,
+            "Orta": 0,
+            "Geliştirmeli": 0
+        };
+
+        function duzgunKategoriAdi(kat) {
+            kat = (kat ?? '').trim().toLocaleLowerCase('tr');
+            if (kat === "mükemmel") return "Mükemmel";
+            if (kat === "çok iyi") return "Çok İyi";
+            if (kat === "iyi") return "İyi";
+            if (kat === "orta") return "Orta";
+            if (kat === "geliştirmeli") return "Geliştirmeli";
+            return "Bilinmiyor";
+        }
+
+        sonucListesi.forEach(item => {
+            const kategoriHam = item.kategori ?? item.KATEGORI ?? 'Bilinmiyor';
+            const kategori = duzgunKategoriAdi(kategoriHam);
+            if (kategoriSayilari.hasOwnProperty(kategori)) {
+                kategoriSayilari[kategori]++;
+            }
+        });
+
+        const kategoriLabels = tumKategoriler;
+        const kategoriValues = tumKategoriler.map(k => kategoriSayilari[k]);
+        if(window.kategoriChart) window.kategoriChart.destroy();
+        const ctx = document.getElementById('kategoriGrafik').getContext('2d');
+        window.kategoriChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: kategoriLabels,
+                datasets: [{
+                    data: kategoriValues,
+                    backgroundColor: [
+                        '#4ade80', // Mükemmel
+                        '#facc15', // Çok İyi
+                        '#60a5fa', // İyi
+                        '#f87171', // Orta
+                        '#a78bfa', // Geliştirmeli
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                plugins: {
+                    legend: { position: 'top', labels: { font: { size: 15 } } },
+                    title: { display: true, text: 'Kategori Dağılımı', font: { size: 18 } }
+                }
+            }
+        });
+
+        // --- SONUÇ KARTLARI ---
+        sonuclarDiv.innerHTML = '';
+        sonucListesi.sort((a, b) => {
+            const pa = parseFloat(a.genel_puan ?? a.GENEL_PUAN ?? 0);
+            const pb = parseFloat(b.genel_puan ?? b.GENEL_PUAN ?? 0);
+            return pb - pa;
+        });
+        sonucListesi.forEach(item => {
+            const adSoyad      = item.ad_soyad      ?? item.AD_SOYAD      ?? '-';
+            const kullaniciAdi = item.kullanici_adi ?? item.KULLANICI_ADI ?? '-';
+            const bolge        = item.bolge         ?? item.BOLGE         ?? '-';
+            const bolgeKatsayi = item.bolge_katsayi ?? item.BOLGE_KATSAYI ?? '-';
+            const puan = parseFloat(item.puan ?? item.PUAN ?? 0);
+            const genelPuan = parseFloat(item.genel_puan ?? item.GENEL_PUAN ?? 0);
+            const toplamOkuma  = item.toplam_okuma  ?? item.TOPLAM_OKUMA  ?? '-';
+            const normalOkuma  = item.normal_okuma  ?? item.NORMAL_OKUMA  ?? '-';
+            const artiYonler   = item.arti_yonler   ?? item.ARTI_YONLER   ?? '-';
+            const eksikYonler  = item.eksik_yonler  ?? item.EKSIK_YONLER  ?? 'Şimdilik yok';
+            const duzenlilikPuani = item.duzenlilik_puani ?? item.DUZENLILIK_PUANI ?? '-';
+            const aktifGun     = item.aktif_gun     ?? item.AKTIF_GUN     ?? '-';
+            const puanAciklama = item.puan_açıklama ?? item.PUAN_AÇIKLAMA ?? '-';
+
+            let gosterilenPuan = puan > 1 ? puan : puan * 100;
+            let gosterilenGenelPuan = genelPuan > 1 ? genelPuan : genelPuan * 100;
+
+            let bgColor = 'bg-red-100';
+            if (gosterilenGenelPuan >= 70) bgColor = 'bg-green-100';
+            else if (gosterilenGenelPuan >= 40) bgColor = 'bg-yellow-100';
+
+            let kategoriText = "Mükemmel";
+            if (gosterilenGenelPuan < 70) kategoriText = "Orta";
+            if (gosterilenGenelPuan < 40) kategoriText = "Geliştirmeli";
+
+            let kategoriClass = "bg-green-200 text-green-800";
+            if (gosterilenGenelPuan < 70) kategoriClass = "bg-yellow-200 text-yellow-900";
+            if (gosterilenGenelPuan < 40) kategoriClass = "bg-red-200 text-red-900";
+
+            let progressValue = Math.max(0, Math.min(100, gosterilenGenelPuan));
+
+            const card = document.createElement('div');
+            card.className = `bg-white p-6 rounded shadow ${bgColor}`;
+            card.innerHTML = `
+                <div class="flex items-center gap-3 mb-2">
+                  <h3 class="text-xl font-semibold flex-1">${adSoyad}</h3>
+                  <span class="px-3 py-1 rounded-full font-semibold text-sm shadow ${kategoriClass}">${kategoriText}</span>
+                </div>
+                <p class="mb-1"><span class="font-semibold">Kullanıcı Adı:</span> ${kullaniciAdi}</p>
+                <p class="mb-1"><span class="font-semibold">Bölge:</span> ${bolge}</p>
+                <p class="mb-1"><span class="font-semibold">Bölge Katsayısı:</span> ${bolgeKatsayi}</p>
+                <p class="mb-1"><span class="font-semibold">Puan:</span> <span class="text-blue-700">${gosterilenPuan.toFixed(2)}%</span></p>
+                <p class="mb-1"><span class="font-semibold">Genel Puan:</span> <span class="text-green-600">${gosterilenGenelPuan.toFixed(2)}%</span></p>
+                <div class="w-full h-4 bg-gray-200 rounded-full mb-2">
+                  <div style="width:${progressValue}%" 
+                       class="h-4 rounded-full transition-all duration-700 
+                              ${progressValue >= 90 ? 'bg-gradient-to-r from-green-400 to-blue-500' : progressValue >= 75 ? 'bg-gradient-to-r from-blue-400 to-yellow-400' : progressValue >= 60 ? 'bg-gradient-to-r from-yellow-300 to-orange-400' : 'bg-gradient-to-r from-orange-400 to-red-600'}">
+                  </div>
+                </div>
+                <p class="mb-1"><span class="font-semibold">Toplam Okuma:</span> ${toplamOkuma}</p>
+                <p class="mb-1"><span class="font-semibold">Normal Okuma:</span> ${normalOkuma}</p>
+                <p class="mb-1"><span class="font-semibold">Düzenlilik Puanı (%):</span> ${duzenlilikPuani}</p>
+                <p class="mb-1"><span class="font-semibold">Aktif Gün:</span> ${aktifGun}</p>
+                <p class="mb-1"><span class="font-semibold">Artı Yönler:</span> <span class="text-green-700">${artiYonler}</span></p>
+                <p class="mb-1"><span class="font-semibold">Eksik Yönler:</span> <span class="text-red-700">${eksikYonler}</span></p>
+                <details class="mt-2">
+                    <summary class="cursor-pointer text-blue-600 font-semibold">Puan Açıklaması</summary>
+                    <div class="text-xs mt-1">${puanAciklama}</div>
+                </details>
+            `;
+            sonuclarDiv.appendChild(card);
+        });
+
+    } catch (e) {
+        sonuclarDiv.innerHTML = `<p class="text-red-600 font-semibold">İstek sırasında hata oluştu: ${e.message}</p>`;
+        if(window.kategoriChart) window.kategoriChart.destroy();
+    }
+});
+</script>
+</body>
+</html>
